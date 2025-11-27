@@ -23,51 +23,7 @@ local NoclipController = { Connection = nil }
 local AutoRejoinController = { Enabled = false }
 local EnhancedAntiAFKController = { Connection = nil, LastActivity = os.clock() }
 local GuiState = { IsMinimized = false, OriginalSize = UDim2.new(0, 400, 0, 500), MinimizedSize = UDim2.new(0, 200, 0, 45) }
-local Window = WindUI:CreateWindow({
-	Title = "Relz Hub",
-	Author = "Fish it",
-	Folder = "Relz Hub",
-	Icon = "rbxassetid://90888007617642",
-	Size = UDim2.fromOffset(450, 300),
-	MinSize = Vector2.new(520, 330),
-	Transparent = false,
-	Theme = "Dark",
-	SideBarWidth = 160,
-	HideSearchBar = true,
-	ScrollBarEnabled = false
-});
-Window:EditOpenButton({
-	Icon = "rbxassetid://90888007617642",
-	CornerRadius = UDim.new(0, 10),
-	Position = UDim2.new(0, 75, 0, 100),
-	OnlyMobile = false,
-	Enabled = true,
-	Draggable = true
-});
-local Tabs = {
-    InfoTab = Window:Tab({
-		Title = "Info",
 
-		ShowTabTitle = false
-	}),
-	MainTab = Window:Tab({
-		Title = "Main",
-	}),
-	ShopTab = Window:Tab({
-		Title = "Shop",
-		ShowTabTitle = false
-	}),
-	TeleportTab = Window:Tab({
-		Title = "Teleport",
-	}),
-	MiscTab = Window:Tab({
-		Title = "Misc",
-
-	}),
-	ServerTab = Window:Tab({
-		Title = "Server",
-	})
-};
 function AnimationController:Disable()
     if self.IsDisabled then return end
     pcall(function()
@@ -148,7 +104,318 @@ function NoclipController:Disable()
     local char = Player.Character
     if char then for _, part in pairs(char:GetDescendants()) do if part:IsA("BasePart") then part.CanCollide = true end end end
 end
+local TeleportService = game:GetService("TeleportService")
+local PlaceId = game.PlaceId
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local net = ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
 
+
+task.spawn(function()
+	while wait() do
+		Players = game:GetService("Players")
+		LocalPlayer = Players.LocalPlayer
+		Character = LocalPlayer.Character
+		Humanoid = Character:WaitForChild("Humanoid")
+		HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+		Animator = Humanoid:FindFirstChild("Animator") or Instance.new("Animator", Humanoid)
+		RodIdle = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Animations"):WaitForChild("ReelingIdle")
+		RodReel = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Animations"):WaitForChild("ReelStart")
+		ReelIntermission = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Animations"):WaitForChild("ReelIntermission")
+		RodShake = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Animations"):WaitForChild("RodThrow")
+		RodShakeAnim = Animator:LoadAnimation(RodShake)
+		RodIdleAnim = Animator:LoadAnimation(RodIdle)
+		RodReelAnim = Animator:LoadAnimation(RodReel)
+		ReelIntermissionAnim = Animator:LoadAnimation(ReelIntermission)
+	end
+end)
+
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+VirtualInputManager = game:GetService("VirtualInputManager")
+Camera = workspace.CurrentCamera
+VariantsModule = require(ReplicatedStorage.Variants)
+EnchantsModule = require(ReplicatedStorage.Enchants)
+BoatsModule = require(ReplicatedStorage.Boats)
+BaitsModule = require(ReplicatedStorage.Baits)
+ItemsModule = require(ReplicatedStorage.Items)
+TiersModule = require(ReplicatedStorage.Tiers)
+Replion = require(ReplicatedStorage.Packages:WaitForChild("Replion"))
+ItemUtility = require(ReplicatedStorage.Shared.ItemUtility)
+
+FishingControllerModule = require(ReplicatedStorage.Controllers.FishingController)
+
+function DropBait()
+	FishingControllerModule.RequestChargeFishingRod()
+	task.wait(0.1)
+	if LocalPlayer.PlayerGui.Charge.Enabled then
+		local viewport = Camera.ViewportSize
+		local x = viewport.X - 1  
+		local y = viewport.Y - 1  
+		VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 0)
+		task.wait(0.05)
+		VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 0)
+	end
+end
+
+function Click()
+	FishingControllerModule.FishingMinigameClick()
+end
+
+function getTiers()
+	local result = {}
+	for i, v in pairs(TiersModule) do
+		table.insert(result, v)
+	end
+	return result
+end
+function getGears()
+	local result = {}
+	for i, v in pairs(ItemsModule) do
+		if v.Data.Type == "Gears" and v.Price then 
+			table.insert(result, v)
+		end
+	end
+	return result
+end
+function getRods()
+	local result = {}
+	for i, v in pairs(ItemsModule) do
+		if v.Data.Type == "Fishing Rods" and v.Price then 
+			table.insert(result, v)
+		end
+	end
+	return result
+end
+function getFish()
+	local result = {}
+	for i, v in pairs(VariantsModule) do
+		if v.Data.Type == "Fishes" then 
+			table.insert(result, v)
+		end
+	end
+	return result
+end
+function getBaits()
+	local result = {}
+	for i, v in pairs(BaitsModule) do
+		if v.Price then 
+			table.insert(result, v)
+		end
+	end
+	return result
+end
+local tierList = {}
+task.spawn(function()
+	for i, v in pairs(getTiers()) do
+		table.insert(tierList, v.Tier .. " - " .. v.Name)
+	end
+end)
+local gearsList = {}
+task.spawn(function()
+	for i, v in pairs(getGears()) do
+		table.insert(gearsList, v.Data.Name .. " ( " .. v.Price .. " )")
+	end
+end)
+local fishList = {}
+task.spawn(function()
+	for i, v in pairs(getFish()) do
+		table.insert(fishList, v.Data.Name)
+	end
+end)
+local rodsList = {}
+task.spawn(function()
+	for i, v in pairs(getRods()) do
+		table.insert(rodsList, v.Data.Name .. " ( " .. v.Price .. " )")
+	end
+end)
+local variantList = {}
+task.spawn(function()
+	for i, v in pairs(VariantsModule) do
+		table.insert(variantList, i)
+	end
+end)
+local enchantsList = {}
+task.spawn(function()
+	for i, v in pairs(EnchantsModule) do
+		table.insert(enchantsList, i)
+	end
+end)
+local baitsList = {}
+task.spawn(function()
+	for i, v in pairs(getBaits()) do
+		table.insert(baitsList, v.Data.Name .. " ( " .. v.Price .. " )")
+	end
+end)
+local boatsList = {}
+task.spawn(function()
+	for i, v in pairs(BoatsModule) do
+		if v.Price then
+			table.insert(boatsList, i .. " ( " .. v.Price .. " )")
+		end
+	end
+end)
+function getIslandList()
+	local result = {}
+	local folder = workspace["!!!! ISLAND LOCATIONS !!!!"]
+	for i, v in pairs(folder:GetChildren()) do
+		table.insert(result, v)
+	end
+	return result
+end
+
+TeleportIslandSection = Tabs.TeleportTab:Section({
+	Title = "Teleport Island",
+	TextXAlignment = "Left"
+});
+SelectedIslandDropdown = TeleportIslandSection:Dropdown({
+	Title = "Select Island",
+	Values = islandList,
+	Value = nil,
+	Callback = function(value)
+		_G.SelectedIsland = value
+	end
+});
+TeleportToIslandButton = TeleportIslandSection:Button({
+	Title = "Teleport to Island",
+	Callback = function()
+		for i, v in pairs(getIslandList()) do
+			if v.Name == _G.SelectedIsland then
+				MoveTo(v.CFrame)
+			end
+		end
+	end
+});
+TeleportPlaceSection = Tabs.TeleportTab:Section({
+	Title = "Teleport Place",
+	TextXAlignment = "Left"
+});
+local PlaceList = {
+	["Acient Jungle"] = CFrame.new(1221.084228515625, 6.624999523162842, -544.1521606445312),
+	["Coral Reefs"] = CFrame.new(-3262.536376953125, 2.499969244003296, 2216.586181640625),
+	["Crater Island"] = CFrame.new(986.1575317382812, 3.1964468955993652, 5146.69970703125),
+	["Esoteric Depths"] = CFrame.new(983311.6767578125, -1302.8548583984375, 1394.7261962890625),
+	["Kohana"] = CFrame.new(-656.1355590820312, 17.250059127807617, 448.951171875),
+	["Kohana Volcano"] = CFrame.new(-554.2496948242188, 18.236753463745117, 117.22779846191406),
+	["Sisyphus Statue"] = CFrame.new(-3731.935546875, -135.0744171142578, -1014.7938232421875),
+	["Treasure Room"] = CFrame.new(-3560.293212890625, -279.07421875, -1605.2633056640625),
+	["Mount Hallow"] = CFrame.new(2144.46728515625, 80.88066864013672, 3269.4921875),
+	["Tropical Grove"] = CFrame.new(-2091.44580078125, 6.268016815185547, 3699.8486328125),
+	["Crystal Cavern"] = CFrame.new(-1723.7686767578125, -450.00048828125, 7205.43701171875),
+	["Crystal Falls"] = CFrame.new(-1955.166748046875, -447.50048828125, 7419.4140625),
+}
+SelectedPlaceDropdown = TeleportPlaceSection:Dropdown({
+	Title = "Select Place",
+	Values = (function()
+		local places = {}
+		for placeName, _ in pairs(PlaceList) do
+			table.insert(places, placeName)
+		end
+		return places
+	end)(),
+	Value = nil,
+	Callback = function(value)
+		_G.SelectedPlace = value
+	end
+});
+TeleportToPlaceButton = TeleportPlaceSection:Button({
+	Title = "Teleport to Place",
+	Callback = function()
+		local targetCFrame = PlaceList[_G.SelectedPlace]
+		if targetCFrame then
+			MoveTo(targetCFrame)
+		end
+	end
+});
+TeleportPlayerSection = Tabs.TeleportTab:Section({
+	Title = "Teleport Player",
+	TextXAlignment = "Left"
+});
+SelectedPlayerDropdown = TeleportPlayerSection:Dropdown({
+	Title = "Select Player",
+	Values = playerList,
+	Value = nil,
+	Callback = function(value)
+		_G.SelectedPlayer = value
+	end
+});
+TeleportToPlayerButton = TeleportPlayerSection:Button({
+	Title = "Teleport to Player",
+	Callback = function()
+		for i, v in pairs(Players:GetPlayers()) do
+			if v.Name == _G.SelectedPlayer and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
+				MoveTo(v.Character.HumanoidRootPart.CFrame)
+			end
+		end
+	end
+});
+task.spawn(function()
+    while task.wait(5) do
+        if not LocalPlayer or not LocalPlayer:IsDescendantOf(game) then
+            TeleportService:Teleport(game.PlaceId)
+        end
+    end
+end)
+TeleportService.TeleportInitFailed:Connect(function(player, teleportResult)
+    if teleportResult == Enum.TeleportResult.Failure then
+        TeleportService:Teleport(game.PlaceId)
+    end
+end)
+
+OxygenSection = Tabs.MiscTab:Section({
+	Title = "Oxygen",
+	TextXAlignment = "Left"
+});
+BypassOxygenButton = OxygenSection:Button({
+	Title = "Bypass Oxygen",
+	Callback = function()
+		net["URE/UpdateOxygen"]:Destroy()
+	end
+});
+ServerSection = Tabs.ServerTab:Section({
+	Title = "Server",
+	TextXAlignment = "Left"
+});
+RejoinServerButton = ServerSection:Button({
+	Title = "Rejoin Server",
+	Callback = function()
+		TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId);
+	end
+});
+HopServerButton = ServerSection:Button({
+	Title = "Hop Server",
+	Callback = function()
+		local module = (loadstring(game:HttpGet("https://raw.githubusercontent.com/raw-scriptpastebin/FE/main/Server_Hop_Settings")))();
+		module:Teleport(game.PlaceId);
+	end
+});
+JobIdSection = Tabs.ServerTab:Section({
+	Title = "Job ID",
+	TextXAlignment = "Left"
+});
+JobIdParagraph = JobIdSection:Paragraph({
+	Title = "Job ID",
+	Desc = game.JobId
+});
+CopyJobIdButton = JobIdSection:Button({
+	Title = "Copy Job ID",
+	Callback = function()
+		setclipboard(game.JobId);
+	end
+});
+JobIdInput = JobIdSection:Input({
+	Title = "Job ID",
+	Placeholder = "Enter Job ID",
+	Type = "Input",
+	Callback = function(value)
+		_G.JobId = value;
+	end
+});
+JoinJobIdServerButton = JobIdSection:Button({
+	Title = "Join Job ID",
+	Callback = function()
+		TeleportService:TeleportToPlaceInstance(game.PlaceId, _G.JobId);
+	end
+});
 -- AUTO REJOIN SYSTEM
 function AutoRejoinController:Enable()
     if self.Enabled then return end
